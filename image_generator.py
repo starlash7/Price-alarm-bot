@@ -2,47 +2,54 @@
 from PIL import Image, ImageDraw, ImageFont
 import os
 
-# 경로 설정
-TEMPLATE_PATH = "template.png"
+# 종목별 템플릿 설정
+TEMPLATES = {
+    "005930": {"file": "template.png", "crop": (5, 0, -5, 0)},        # 삼성 (흰 테두리 있음)
+    "000660": {"file": "template_hynix.png", "crop": (0, 0, 0, 0)},   # 하이닉스 (테두리 없음)
+}
+
 OUTPUT_PATH = "price_alert.png"
 
 
-def create_price_image(stock_name, price, is_up):
+def create_price_image(stock_code, price, is_up):
     """
-    템플릿 이미지에 가격만 오버레이
+    종목별 템플릿 이미지에 가격 오버레이
     """
-    # 템플릿 이미지 열기
-    template_path = os.path.join(os.path.dirname(__file__), TEMPLATE_PATH)
+    # 템플릿 선택
+    template_info = TEMPLATES.get(stock_code, {"file": "template.png", "crop": (0, 0, 0, 0)})
+    template_path = os.path.join(os.path.dirname(__file__), template_info["file"])
+    
     img = Image.open(template_path).convert("RGB")
     
-    # 흰색/연한 테두리 자르기 (더 많이)
-    img = img.crop((5, 0, img.size[0] - 5, img.size[1]))
+    # 종목별 crop 적용
+    crop = template_info["crop"]
+    if crop != (0, 0, 0, 0):
+        left = crop[0]
+        right = img.size[0] + crop[2] if crop[2] < 0 else img.size[0]
+        img = img.crop((left, 0, right, img.size[1]))
     
     draw = ImageDraw.Draw(img)
     
     width, height = img.size
-    print(f"Template size (after crop): {width}x{height}")
+    print(f"Template: {template_info['file']}, Size: {width}x{height}")
     
-    # 폰트 설정 (더 굵고 둥근 폰트)
+    # 폰트 설정
     font_options = [
-        "C:/Windows/Fonts/GOTHICB.TTF",    # Century Gothic Bold (굵고 둥근)
-        "C:/Windows/Fonts/ariblk.ttf",     # Arial Black (매우 굵음)
-        "C:/Windows/Fonts/segoeuib.ttf",   # Segoe UI Bold
+        "C:/Windows/Fonts/GOTHICB.TTF",
+        "C:/Windows/Fonts/ariblk.ttf",
+        "C:/Windows/Fonts/segoeuib.ttf",
     ]
     
     price_font = None
     for font_path in font_options:
         try:
             price_font = ImageFont.truetype(font_path, 80)
-            print(f"Using font: {font_path}")
             break
-        except Exception as e:
-            print(f"Font not found: {font_path}")
+        except:
             continue
     
     if price_font is None:
         price_font = ImageFont.load_default()
-        print("Using default font")
     
     # 가격 텍스트
     price_text = format(price, ',') + " WON"
@@ -54,15 +61,13 @@ def create_price_image(stock_name, price, is_up):
     
     # 중앙 위치 계산
     x = (width - price_width) // 2
-    y = (height - price_height) // 2 + 20  # 아래로 내림
+    y = (height - price_height) // 2 + 20
     
     # 그림자 효과
-    shadow_color = (0, 0, 0)
-    draw.text((x + 2, y + 2), price_text, fill=shadow_color, font=price_font)
+    draw.text((x + 2, y + 2), price_text, fill=(0, 0, 0), font=price_font)
     
     # 메인 텍스트 (흰색)
-    text_color = (255, 255, 255)
-    draw.text((x, y), price_text, fill=text_color, font=price_font)
+    draw.text((x, y), price_text, fill=(255, 255, 255), font=price_font)
     
     # 저장
     output_path = os.path.join(os.path.dirname(__file__), OUTPUT_PATH)
@@ -73,6 +78,8 @@ def create_price_image(stock_name, price, is_up):
 
 
 if __name__ == "__main__":
-    # 테스트
-    path = create_price_image("Samsung", 165000, True)
-    print(f"Test image: {path}")
+    # 삼성전자 테스트
+    create_price_image("005930", 165000, True)
+    
+    # SK하이닉스 테스트
+    create_price_image("000660", 841000, True)

@@ -1,13 +1,13 @@
 import schedule
 import time
 from price_tracker import PriceTracker
-from config import CHECK_INTERVAL, STOCK_NAME, PRICE_UNIT
+from config import CHECK_INTERVAL, STOCKS
 
 
 def main():
-    print(f"=== {STOCK_NAME} 가격 알림 봇 시작 ===", flush=True)
-    print(f"알림 단위: {PRICE_UNIT:,}원", flush=True)
-    print(f"체크 주기: {CHECK_INTERVAL}초", flush=True)
+    print("=== Price Alert Bot Started ===", flush=True)
+    print(f"Stocks: {', '.join([s['name'] for s in STOCKS])}", flush=True)
+    print(f"Check interval: {CHECK_INTERVAL}s", flush=True)
     print("=" * 35, flush=True)
     
     tracker = PriceTracker()
