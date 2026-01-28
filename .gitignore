@@ -1,0 +1,10 @@
+# 환경변수 (비밀 정보)
+.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# 생성된 이미지
+price_alert.png
