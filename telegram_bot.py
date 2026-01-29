@@ -21,26 +21,25 @@ def send_photo(image_path, caption):
     return asyncio.run(send_photo_async(image_path, caption))
 
 
-def send_price_alert(stock_code, korean_name, price, is_up):
+def send_price_alert(stock_code, korean_name, price, is_up, is_index=False):
     # 이모지: 📈 = \U0001F4C8, 📉 = \U0001F4C9
     if is_up:
         emoji = "\U0001F4C8"
     else:
         emoji = "\U0001F4C9"
     
-    caption = emoji + " " + korean_name + " " + format(price, ',') + " WON @cryptoPixy"
+    # 지수는 소수점, 주식은 WON
+    if is_index:
+        price_text = f"{price:,.2f}"
+    else:
+        price_text = format(int(price), ',') + " WON"
+    
+    caption = emoji + " " + korean_name + " " + price_text + " @cryptoPixy"
     
     # 종목별 이미지 생성
-    image_path = create_price_image(stock_code, price, is_up)
+    image_path = create_price_image(stock_code, price, is_up, is_index=is_index)
     
     return send_photo(image_path, caption)
-
-
-# 종목별 한글 이름
-STOCK_NAMES = {
-    "005930": "\uc0bc\uc131\uc804\uc790",      # 삼성전자
-    "000660": "SK \ud558\uc774\ub2c9\uc2a4",   # SK 하이닉스
-}
 
 
 if __name__ == "__main__":
@@ -48,4 +47,7 @@ if __name__ == "__main__":
     send_price_alert("005930", "\uc0bc\uc131\uc804\uc790", 165000, True)
     
     # SK하이닉스 테스트
-    send_price_alert("000660", "SK\ud558\uc774\ub2c9\uc2a4", 845000, True)
+    send_price_alert("000660", "SK \ud558\uc774\ub2c9\uc2a4", 845000, True)
+    
+    # KOSPI 테스트
+    send_price_alert("KOSPI", "\ucf54\uc2a4\ud53c", 5221.25, True, is_index=True)
