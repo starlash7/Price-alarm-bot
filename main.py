@@ -1,22 +1,28 @@
 import schedule
 import time
 from price_tracker import PriceTracker
-from config import CHECK_INTERVAL, STOCKS
+from config import STOCKS
 
 
 def main():
     print("=== Price Alert Bot Started ===", flush=True)
-    print(f"Stocks: {', '.join([s['name'] for s in STOCKS])}", flush=True)
-    print(f"Check interval: {CHECK_INTERVAL}s", flush=True)
     print("=" * 35, flush=True)
     
     tracker = PriceTracker()
     
-    # 시작 시 한 번 체크
-    tracker.check_and_alert()
+    # 종목별 스케줄 등록
+    for stock in STOCKS:
+        name = stock["name"]
+        code = stock["code"]
+        times = stock["alert_times"]
+        
+        print(f"[{name}] Alert times: {', '.join(times)}", flush=True)
+        
+        for alert_time in times:
+            schedule.every().day.at(alert_time).do(tracker.send_scheduled_alert, stock)
     
-    # 주기적으로 체크
-    schedule.every(CHECK_INTERVAL).seconds.do(tracker.check_and_alert)
+    print("=" * 35, flush=True)
+    print("Waiting for scheduled times...", flush=True)
     
     while True:
         schedule.run_pending()
