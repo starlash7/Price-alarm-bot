@@ -4,9 +4,9 @@ import os
 
 # 종목별 템플릿 설정
 TEMPLATES = {
-    "005930": {"file": "template.png", "crop": (5, 0, -5, 0), "y_offset": 20, "x_offset": 0, "font_size": 80},      # 삼성
-    "000660": {"file": "template_hynix.png", "crop": (0, 0, 0, 0), "y_offset": 20, "x_offset": 0, "font_size": 80}, # 하이닉스
-    "KOSPI": {"file": "template_kospi.png", "crop": (5, 0, -5, 0), "y_offset": -60, "x_offset": 60, "font_size": 40},  # KOSPI
+    "005930": {"file": "template.png", "crop": (5, 0, -5, 0), "y_offset": 20, "x_offset": 0, "font_size": 90},      # 삼성
+    "000660": {"file": "template_hynix.png", "crop": (0, 0, 0, 0), "y_offset": 20, "x_offset": 0, "font_size": 90}, # 하이닉스
+    "KOSPI": {"file": "template_kospi.png", "crop": (5, 0, -5, 0), "y_offset": -60, "x_offset": 60, "font_size": 60},  # KOSPI
 }
 
 OUTPUT_PATH = "price_alert.png"
@@ -35,8 +35,14 @@ def create_price_image(stock_code, price, is_up, is_index=False):
     print(f"Template: {template_info['file']}, Size: {width}x{height}")
     
     # 폰트 설정 (종목별 크기)
-    font_size = template_info.get("font_size", 80)
+    font_size = template_info.get("font_size", 120)
     font_options = [
+        # macOS 폰트
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+        "/Library/Fonts/Arial Bold.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        # Windows 폰트
         "C:/Windows/Fonts/GOTHICB.TTF",
         "C:/Windows/Fonts/ariblk.ttf",
         "C:/Windows/Fonts/segoeuib.ttf",
