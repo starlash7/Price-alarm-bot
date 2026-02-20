@@ -13,7 +13,7 @@ STOCKS = [
         "code": "KOSPI",
         "name": "KOSPI",
         "korean_name": "\ucf54\uc2a4\ud53c",  # 코스피
-        "alert_times": ["09:00"],  # 오전 9시
+        "alert_times": ["09:30"],  # 오전 9시 30분
         "is_index": True,
     },
     {
@@ -27,7 +27,7 @@ STOCKS = [
         "code": "000660",
         "name": "SK Hynix",
         "korean_name": "SK \ud558\uc774\ub2c9\uc2a4",  # SK 하이닉스
-        "alert_times": ["15:00"],  # 오후 3시
+        "alert_times": ["15:20"],  # 오후 3시 20분 (장 마감 직전)
         "is_index": False,
     },
 ]
