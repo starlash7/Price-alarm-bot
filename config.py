@@ -7,6 +7,9 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID")
 
+# Threads 설정
+THREADS_ACCESS_TOKEN = os.getenv("THREADS_ACCESS_TOKEN")
+
 # 주식 설정 (여러 종목)
 STOCKS = [
     {
