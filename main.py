@@ -7,9 +7,12 @@ from config import STOCKS
 def main():
     print("=== Price Alert Bot Started ===", flush=True)
     print("=" * 35, flush=True)
-    
+
+    # 기존 스케줄 초기화 (재시작 시 중복 방지)
+    schedule.clear()
+
     tracker = PriceTracker()
-    
+
     # 종목별 스케줄 등록
     for stock in STOCKS:
         name = stock["name"]

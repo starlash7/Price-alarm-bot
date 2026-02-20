@@ -9,9 +9,6 @@ TEMPLATES = {
     "KOSPI": {"file": "template_kospi.png", "crop": (5, 0, -5, 0), "y_offset": -60, "x_offset": 60, "font_size": 60},  # KOSPI
 }
 
-OUTPUT_PATH = "price_alert.png"
-
-
 def create_price_image(stock_code, price, is_up, is_index=False):
     """
     종목별 템플릿 이미지에 가격 오버레이
@@ -19,15 +16,18 @@ def create_price_image(stock_code, price, is_up, is_index=False):
     # 템플릿 선택
     template_info = TEMPLATES.get(stock_code, {"file": "template.png", "crop": (0, 0, 0, 0), "y_offset": 20})
     template_path = os.path.join(os.path.dirname(__file__), template_info["file"])
-    
+
     img = Image.open(template_path).convert("RGB")
-    
-    # 종목별 crop 적용
+
+    # 종목별 crop 적용 (left, top, right, bottom)
     crop = template_info["crop"]
     if crop != (0, 0, 0, 0):
+        w, h = img.size
         left = crop[0]
-        right = img.size[0] + crop[2] if crop[2] < 0 else img.size[0]
-        img = img.crop((left, 0, right, img.size[1]))
+        top = crop[1]
+        right = w + crop[2] if crop[2] < 0 else w
+        bottom = h + crop[3] if crop[3] < 0 else h
+        img = img.crop((left, top, right, bottom))
     
     draw = ImageDraw.Draw(img)
     
@@ -69,21 +69,25 @@ def create_price_image(stock_code, price, is_up, is_index=False):
     price_bbox = draw.textbbox((0, 0), price_text, font=price_font)
     price_width = price_bbox[2] - price_bbox[0]
     price_height = price_bbox[3] - price_bbox[1]
-    
+
     # 위치 계산 (x_offset, y_offset 적용)
     y_offset = template_info.get("y_offset", 20)
     x_offset = template_info.get("x_offset", 0)
     x = (width - price_width) // 2 + x_offset
     y = (height - price_height) // 2 + y_offset
-    
+
+    # 텍스트가 이미지 경계를 넘지 않도록 clamp
+    x = max(0, min(x, width - price_width))
+    y = max(0, min(y, height - price_height))
+
     # 그림자 효과
     draw.text((x + 2, y + 2), price_text, fill=(0, 0, 0), font=price_font)
-    
+
     # 메인 텍스트 (흰색)
     draw.text((x, y), price_text, fill=(255, 255, 255), font=price_font)
-    
-    # 저장
-    output_path = os.path.join(os.path.dirname(__file__), OUTPUT_PATH)
+
+    # 종목별 개별 파일로 저장 (동시 호출 시 덮어쓰기 방지)
+    output_path = os.path.join(os.path.dirname(__file__), f"price_alert_{stock_code}.png")
     img.save(output_path, "PNG")
     
     print(f"Price image created: {output_path}")
