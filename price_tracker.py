@@ -1,8 +1,9 @@
 import time
 from datetime import datetime
 from stock_fetcher import get_current_price
-from telegram_bot import send_price_alert
-from threads_bot import send_threads_post
+from image_generator import create_price_image
+from telegram_bot import send_photo, send_price_caption
+from threads_bot import send_threads_with_image
 from config import STOCKS
 
 # 중복 호출 방지 간격 (초)
@@ -51,10 +52,16 @@ class PriceTracker:
         else:
             print(f"[{name}] Price: {price:,} ({'+' if is_up else '-'}{change_ratio}%)", flush=True)
 
-        # 알림 전송 (텔레그램 + Threads)
-        send_price_alert(code, korean_name, price, is_up, is_index=is_index)
-        send_threads_post(code, korean_name, price, is_up, is_index=is_index,
-                         change=change, change_ratio=change_ratio)
+        # 이미지 1회 생성
+        image_path = create_price_image(code, price, is_up, is_index=is_index)
+
+        # 텔레그램 전송
+        caption = send_price_caption(code, korean_name, price, is_up, is_index=is_index)
+        send_photo(image_path, caption)
+
+        # Threads 전송
+        send_threads_with_image(image_path, korean_name, price, is_up, is_index=is_index,
+                                change=change, change_ratio=change_ratio)
 
         # 가격 및 전송 시간 저장
         self.last_prices[code] = price

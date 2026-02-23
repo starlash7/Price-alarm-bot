@@ -42,13 +42,10 @@ def _upload_image(image_path):
     return resp.json()["data"]["url"]
 
 
-def send_threads_post(stock_code, korean_name, price, is_up, is_index=False,
-                      change=0, change_ratio=0.0):
-    """Threads에 이미지 + 텍스트 게시"""
+def send_threads_with_image(image_path, korean_name, price, is_up, is_index=False,
+                            change=0, change_ratio=0.0):
+    """이미 생성된 이미지로 Threads 게시"""
     try:
-        # 이미지 생성
-        image_path = create_price_image(stock_code, price, is_up, is_index=is_index)
-
         # 이미지 업로드
         image_url = _upload_image(image_path)
         print(f"Image uploaded: {image_url}", flush=True)
@@ -111,9 +108,18 @@ def send_threads_post(stock_code, korean_name, price, is_up, is_index=False,
         return False
 
 
+def send_threads_post(stock_code, korean_name, price, is_up, is_index=False,
+                      change=0, change_ratio=0.0):
+    """이미지 생성 + Threads 게시 (단독 사용 시)"""
+    image_path = create_price_image(stock_code, price, is_up, is_index=is_index)
+    return send_threads_with_image(image_path, korean_name, price, is_up, is_index=is_index,
+                                   change=change, change_ratio=change_ratio)
+
+
 if __name__ == "__main__":
     # 테스트
     from stock_fetcher import get_current_price
-    price = get_current_price("005930")
-    if price:
-        send_threads_post("005930", "삼성전자", price, True)
+    result = get_current_price("005930")
+    if result:
+        send_threads_post("005930", "삼성전자", result["price"], result["is_up"],
+                         change=result["change"], change_ratio=result["change_ratio"])
