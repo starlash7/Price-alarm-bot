@@ -8,3 +8,7 @@ venv/
 
 # 생성된 이미지
 price_alert*.png
+
+# Bot lock file
+bot.lock
+bot.log
