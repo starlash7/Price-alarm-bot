@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 from stock_fetcher import get_current_price
 from telegram_bot import send_price_alert
 from threads_bot import send_threads_post
@@ -17,6 +18,11 @@ class PriceTracker:
 
     def send_scheduled_alert(self, stock):
         """정해진 시간에 알림 전송"""
+        # 주말(토=5, 일=6) 송출 안 함
+        if datetime.now().weekday() >= 5:
+            print(f"[{stock['name']}] Skipping weekend", flush=True)
+            return
+
         code = stock["code"]
         name = stock["name"]
         korean_name = stock["korean_name"]
