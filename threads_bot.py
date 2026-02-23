@@ -102,6 +102,10 @@ def send_threads_post(stock_code, korean_name, price, is_up, is_index=False,
         print(f"Threads posted: {resp.json()['id']}", flush=True)
         return True
 
+    except requests.exceptions.HTTPError as e:
+        error_body = e.response.text if e.response else "no response"
+        print(f"Threads failed: {e} | {error_body}", flush=True)
+        return False
     except Exception as e:
         print(f"Threads failed: {e}", flush=True)
         return False
