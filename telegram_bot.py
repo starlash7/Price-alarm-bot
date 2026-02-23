@@ -21,24 +21,25 @@ def send_photo(image_path, caption):
     return asyncio.run(send_photo_async(image_path, caption))
 
 
-def send_price_alert(stock_code, korean_name, price, is_up, is_index=False):
-    # 이모지: 📈 = \U0001F4C8, 📉 = \U0001F4C9
+def send_price_caption(stock_code, korean_name, price, is_up, is_index=False):
+    """캡션만 생성 (이미지 생성 없음)"""
     if is_up:
         emoji = "\U0001F4C8"
     else:
         emoji = "\U0001F4C9"
-    
-    # 지수는 소수점, 주식은 WON
+
     if is_index:
         price_text = f"{price:,.2f}"
     else:
         price_text = format(int(price), ',') + " WON"
-    
-    caption = emoji + " " + korean_name + " " + price_text + " @cryptoPixy"
-    
-    # 종목별 이미지 생성
+
+    return emoji + " " + korean_name + " " + price_text + " @cryptoPixy"
+
+
+def send_price_alert(stock_code, korean_name, price, is_up, is_index=False):
+    """이미지 생성 + 전송 (단독 사용 시)"""
+    caption = send_price_caption(stock_code, korean_name, price, is_up, is_index=is_index)
     image_path = create_price_image(stock_code, price, is_up, is_index=is_index)
-    
     return send_photo(image_path, caption)
 
 
