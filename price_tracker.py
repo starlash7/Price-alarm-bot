@@ -4,7 +4,7 @@ from stock_fetcher import get_current_price
 from image_generator import create_price_image
 from telegram_bot import send_photo, send_price_caption
 from threads_bot import send_threads_with_image
-from config import STOCKS
+from config import STOCKS, ENABLE_THREADS, THREADS_ACCESS_TOKEN
 
 # 중복 호출 방지 간격 (초)
 DEDUP_INTERVAL = 60
@@ -59,9 +59,12 @@ class PriceTracker:
         caption = send_price_caption(code, korean_name, price, is_up, is_index=is_index)
         send_photo(image_path, caption)
 
-        # Threads 전송
-        send_threads_with_image(image_path, korean_name, price, is_up, is_index=is_index,
-                                change=change, change_ratio=change_ratio)
+        # Threads 전송 (옵션)
+        if ENABLE_THREADS and THREADS_ACCESS_TOKEN:
+            send_threads_with_image(image_path, korean_name, price, is_up, is_index=is_index,
+                                    change=change, change_ratio=change_ratio)
+        else:
+            print(f"[{name}] Threads disabled", flush=True)
 
         # 가격 및 전송 시간 저장
         self.last_prices[code] = price

@@ -9,6 +9,7 @@ TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID")
 
 # Threads 설정
 THREADS_ACCESS_TOKEN = os.getenv("THREADS_ACCESS_TOKEN")
+ENABLE_THREADS = os.getenv("ENABLE_THREADS", "true").strip().lower() in ("1", "true", "yes", "on")
 
 # 주식 설정 (여러 종목)
 STOCKS = [
