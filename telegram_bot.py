@@ -61,6 +61,13 @@ def send_price_caption(asset, price, is_up):
     return f"{emoji} <b>{price_text}</b> {channel_text}"
 
 
+def send_close_caption(asset, price, is_up):
+    emoji = "\U0001F4C8" if is_up else "\U0001F4C9"
+    price_text = html.escape(_format_caption_price(asset, price))
+    channel_text = html.escape(asset["telegram_channel"])
+    return f"[CLOSE] {emoji} <b>{price_text}</b> {channel_text}"
+
+
 def send_price_alert(asset, price, is_up, chat_id=None):
     """이미지 생성 + 전송 (단독 사용 시)"""
     caption = send_price_caption(asset, price, is_up)

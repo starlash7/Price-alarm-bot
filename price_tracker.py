@@ -1,3 +1,5 @@
+import json
+import os
 import time
 from datetime import datetime, time as dt_time
 from decimal import Decimal
@@ -5,18 +7,38 @@ from zoneinfo import ZoneInfo
 
 from image_generator import create_price_image
 from stock_fetcher import get_current_price, get_crypto_prices
-from telegram_bot import send_photo, send_price_caption
+from telegram_bot import send_close_caption, send_photo, send_price_caption
 from threads_bot import send_threads_with_image
 from config import ASSETS, ENABLE_THREADS, THREADS_ACCESS_TOKEN
 
 SEOUL_TZ = ZoneInfo("Asia/Seoul")
 NEW_YORK_TZ = ZoneInfo("America/New_York")
+CLOSE_ALERT_STATE_FILE = os.path.join(os.path.dirname(__file__), ".context", "close_alert_state.json")
 
 
 class PriceTracker:
     def __init__(self):
         self.last_ranges = {}
         self.last_prices = {}
+        self.close_alert_dates = self._load_close_alert_dates()
+
+    def _load_close_alert_dates(self):
+        try:
+            with open(CLOSE_ALERT_STATE_FILE, "r") as handle:
+                return json.load(handle)
+        except FileNotFoundError:
+            return {}
+        except Exception as exc:
+            print(f"[CLOSE] State load error: {exc}", flush=True)
+            return {}
+
+    def _save_close_alert_dates(self):
+        try:
+            os.makedirs(os.path.dirname(CLOSE_ALERT_STATE_FILE), exist_ok=True)
+            with open(CLOSE_ALERT_STATE_FILE, "w") as handle:
+                json.dump(self.close_alert_dates, handle)
+        except Exception as exc:
+            print(f"[CLOSE] State save error: {exc}", flush=True)
 
     def _is_market_open(self, asset, now_utc=None):
         market = asset["market"]
@@ -41,6 +63,15 @@ class PriceTracker:
 
     def _range_key(self, asset, price):
         return int(Decimal(str(price)) // Decimal(str(asset["alert_step"])))
+
+    def _market_clock(self, asset, now_utc=None):
+        now_utc = now_utc or datetime.now(ZoneInfo("UTC"))
+
+        if asset["market"] == "KR":
+            return now_utc.astimezone(SEOUL_TZ), dt_time(15, 30)
+        if asset["market"] == "US":
+            return now_utc.astimezone(NEW_YORK_TZ), dt_time(16, 0)
+        return None, None
 
     def _send_alert(self, asset, result):
         price = result["price"]
@@ -68,6 +99,40 @@ class PriceTracker:
             print(f"[{asset['name']}] Threads disabled", flush=True)
 
         return True
+
+    def _send_close_alert(self, asset, result):
+        price = result["price"]
+        is_up = result["is_up"]
+        image_path = create_price_image(asset["code"], price, is_up, is_index=asset.get("is_index", False))
+        caption = send_close_caption(asset, price, is_up)
+        sent = send_photo(image_path, caption, chat_id=asset["telegram_channel"])
+        if not sent:
+            print(f"[{asset['name']}] Close alert send failed for {asset['telegram_channel']}", flush=True)
+            return False
+
+        print(f"[{asset['name']}] Close sent to {asset['telegram_channel']}", flush=True)
+        return True
+
+    def _process_close_alert(self, asset, now_utc=None):
+        if asset["market"] not in ("KR", "US"):
+            return
+
+        local_now, close_time = self._market_clock(asset, now_utc=now_utc)
+        if local_now is None or local_now.weekday() >= 5 or local_now.time() <= close_time:
+            return
+
+        trading_date = local_now.date().isoformat()
+        if self.close_alert_dates.get(asset["code"]) == trading_date:
+            return
+
+        result = get_current_price(asset)
+        if result is None:
+            print(f"[{asset['name']}] Close price fetch failed", flush=True)
+            return
+
+        if self._send_close_alert(asset, result):
+            self.close_alert_dates[asset["code"]] = trading_date
+            self._save_close_alert_dates()
 
     def _process_asset(self, asset, crypto_cache=None):
         if not self._is_market_open(asset):
@@ -110,6 +175,12 @@ class PriceTracker:
                 self._process_asset(asset, crypto_cache=crypto_cache)
             except Exception as exc:
                 print(f"[{asset['name']}] Processing error: {exc}", flush=True)
+
+        for asset in assets:
+            try:
+                self._process_close_alert(asset)
+            except Exception as exc:
+                print(f"[{asset['name']}] Close processing error: {exc}", flush=True)
 
 
 if __name__ == "__main__":
