@@ -1,78 +1,117 @@
 import time
-from datetime import datetime
-from stock_fetcher import get_current_price
+from datetime import datetime, time as dt_time
+from decimal import Decimal
+from zoneinfo import ZoneInfo
+
 from image_generator import create_price_image
+from stock_fetcher import get_current_price, get_crypto_prices
 from telegram_bot import send_photo, send_price_caption
 from threads_bot import send_threads_with_image
-from config import STOCKS, ENABLE_THREADS, THREADS_ACCESS_TOKEN
+from config import ASSETS, ENABLE_THREADS, THREADS_ACCESS_TOKEN
 
-# 중복 호출 방지 간격 (초)
-DEDUP_INTERVAL = 60
+SEOUL_TZ = ZoneInfo("Asia/Seoul")
+NEW_YORK_TZ = ZoneInfo("America/New_York")
 
 
 class PriceTracker:
     def __init__(self):
-        # 종목별 마지막 가격 저장 (비교용)
+        self.last_ranges = {}
         self.last_prices = {}
-        # 종목별 마지막 알림 시간 (중복 방지)
-        self.last_sent = {}
 
-    def send_scheduled_alert(self, stock):
-        """정해진 시간에 알림 전송"""
-        # 주말(토=5, 일=6) 송출 안 함
-        if datetime.now().weekday() >= 5:
-            print(f"[{stock['name']}] Skipping weekend", flush=True)
+    def _is_market_open(self, asset, now_utc=None):
+        market = asset["market"]
+        if market == "CRYPTO":
+            return True
+
+        now_utc = now_utc or datetime.now(ZoneInfo("UTC"))
+
+        if market == "KR":
+            local_now = now_utc.astimezone(SEOUL_TZ)
+            if local_now.weekday() >= 5:
+                return False
+            return dt_time(9, 0) <= local_now.time() <= dt_time(15, 30)
+
+        if market == "US":
+            local_now = now_utc.astimezone(NEW_YORK_TZ)
+            if local_now.weekday() >= 5:
+                return False
+            return dt_time(9, 30) <= local_now.time() <= dt_time(16, 0)
+
+        return False
+
+    def _range_key(self, asset, price):
+        return int(Decimal(str(price)) // Decimal(str(asset["alert_step"])))
+
+    def _send_alert(self, asset, result):
+        price = result["price"]
+        is_up = result["is_up"]
+        image_path = create_price_image(asset["code"], price, is_up, is_index=asset.get("is_index", False))
+        caption = send_price_caption(asset, price, is_up)
+        sent = send_photo(image_path, caption, chat_id=asset["telegram_channel"])
+        if not sent:
+            print(f"[{asset['name']}] Telegram send failed for {asset['telegram_channel']}", flush=True)
+            return False
+
+        print(f"[{asset['name']}] Sent to {asset['telegram_channel']}", flush=True)
+
+        if ENABLE_THREADS and THREADS_ACCESS_TOKEN:
+            send_threads_with_image(
+                image_path,
+                asset["korean_name"],
+                price,
+                is_up,
+                is_index=asset.get("is_index", False),
+                change=result["change"],
+                change_ratio=result["change_ratio"],
+            )
+        else:
+            print(f"[{asset['name']}] Threads disabled", flush=True)
+
+        return True
+
+    def _process_asset(self, asset, crypto_cache=None):
+        if not self._is_market_open(asset):
             return
 
-        code = stock["code"]
-        name = stock["name"]
-        korean_name = stock["korean_name"]
-        is_index = stock.get("is_index", False)
-
-        # 중복 호출 방지: 같은 종목이 짧은 시간 내에 다시 호출되면 무시
-        now = time.time()
-        last = self.last_sent.get(code, 0)
-        if now - last < DEDUP_INTERVAL:
-            print(f"[{name}] Skipping duplicate call (last sent {int(now - last)}s ago)", flush=True)
-            return
-
-        result = get_current_price(code, is_index=is_index)
-
+        result = get_current_price(asset, crypto_cache=crypto_cache)
         if result is None:
-            print(f"[{name}] Price fetch failed", flush=True)
+            print(f"[{asset['name']}] Price fetch failed", flush=True)
             return
 
         price = result["price"]
-        change = result["change"]
-        change_ratio = result["change_ratio"]
-        is_up = result["is_up"]
+        range_key = self._range_key(asset, price)
+        previous_range = self.last_ranges.get(asset["code"])
 
-        if is_index:
-            print(f"[{name}] Price: {price:,.2f} ({'+' if is_up else '-'}{change_ratio}%)", flush=True)
-        else:
-            print(f"[{name}] Price: {price:,} ({'+' if is_up else '-'}{change_ratio}%)", flush=True)
+        if previous_range is None:
+            self.last_ranges[asset["code"]] = range_key
+            self.last_prices[asset["code"]] = price
+            print(f"[{asset['name']}] Baseline set at {price}", flush=True)
+            return
 
-        # 이미지 1회 생성
-        image_path = create_price_image(code, price, is_up, is_index=is_index)
+        self.last_prices[asset["code"]] = price
 
-        # 텔레그램 전송
-        caption = send_price_caption(code, korean_name, price, is_up, is_index=is_index)
-        send_photo(image_path, caption)
+        if range_key == previous_range:
+            return
 
-        # Threads 전송 (옵션)
-        if ENABLE_THREADS and THREADS_ACCESS_TOKEN:
-            send_threads_with_image(image_path, korean_name, price, is_up, is_index=is_index,
-                                    change=change, change_ratio=change_ratio)
-        else:
-            print(f"[{name}] Threads disabled", flush=True)
+        if self._send_alert(asset, result):
+            self.last_ranges[asset["code"]] = range_key
 
-        # 가격 및 전송 시간 저장
-        self.last_prices[code] = price
-        self.last_sent[code] = now
+    def poll_assets(self, assets):
+        crypto_assets = [asset for asset in assets if asset["market"] == "CRYPTO"]
+        crypto_cache = {}
+        if crypto_assets:
+            try:
+                crypto_cache = get_crypto_prices(crypto_assets)
+            except Exception as exc:
+                print(f"[CRYPTO] Batch fetch error: {exc}", flush=True)
+
+        for asset in assets:
+            try:
+                self._process_asset(asset, crypto_cache=crypto_cache)
+            except Exception as exc:
+                print(f"[{asset['name']}] Processing error: {exc}", flush=True)
 
 
 if __name__ == "__main__":
-    from config import STOCKS
     tracker = PriceTracker()
-    for stock in STOCKS:
-        tracker.send_scheduled_alert(stock)
+    tracker.poll_assets(ASSETS)

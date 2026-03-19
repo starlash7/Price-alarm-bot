@@ -1,16 +1,16 @@
-import schedule
-import time
 import os
-import sys
 import signal
+import sys
+import time
+
+from config import ASSETS, CHECK_INTERVAL_SECONDS
 from price_tracker import PriceTracker
-from config import STOCKS
+from telegram_bot import get_chat_info
 
 LOCK_FILE = os.path.join(os.path.dirname(__file__), "bot.lock")
 
 
 def _is_process_running(pid):
-    """PID가 실제로 살아있는지 확인"""
     try:
         os.kill(pid, 0)
         return True
@@ -19,25 +19,47 @@ def _is_process_running(pid):
 
 
 def _acquire_lock():
-    """단일 인스턴스 보장 (lock file)"""
     if os.path.exists(LOCK_FILE):
-        with open(LOCK_FILE, "r") as f:
-            old_pid = f.read().strip()
+        with open(LOCK_FILE, "r") as handle:
+            old_pid = handle.read().strip()
         if old_pid and old_pid.isdigit() and _is_process_running(int(old_pid)):
             print(f"Bot already running (PID {old_pid}). Exiting.", flush=True)
             sys.exit(1)
-        else:
-            print(f"Stale lock file found (PID {old_pid}). Removing.", flush=True)
+        print(f"Stale lock file found (PID {old_pid}). Removing.", flush=True)
 
-    with open(LOCK_FILE, "w") as f:
-        f.write(str(os.getpid()))
+    with open(LOCK_FILE, "w") as handle:
+        handle.write(str(os.getpid()))
 
 
-def _release_lock(*args):
-    """종료 시 lock file 제거"""
+def _release_lock(*_args):
     if os.path.exists(LOCK_FILE):
         os.remove(LOCK_FILE)
     sys.exit(0)
+
+
+def _filter_accessible_assets(assets):
+    chat_checks = {}
+    active_assets = []
+
+    for asset in assets:
+        chat_id = asset["telegram_channel"]
+        if chat_id not in chat_checks:
+            info = get_chat_info(chat_id)
+            chat_checks[chat_id] = info
+            if info["ok"]:
+                print(f"[Channel OK] {chat_id} -> {info['title']} ({info['chat_id']})", flush=True)
+            else:
+                print(
+                    f"[Channel ERR] {chat_id} -> {info['error_type']}: {info['error']}",
+                    flush=True,
+                )
+
+        if chat_checks[chat_id]["ok"]:
+            active_assets.append(asset)
+        else:
+            print(f"[{asset['name']}] Disabled due to inaccessible channel {chat_id}", flush=True)
+
+    return active_assets
 
 
 def main():
@@ -47,31 +69,30 @@ def main():
 
     print("=== Price Alert Bot Started ===", flush=True)
     print(f"PID: {os.getpid()}", flush=True)
+    print(f"Polling every {CHECK_INTERVAL_SECONDS}s", flush=True)
     print("=" * 35, flush=True)
 
-    # 기존 스케줄 초기화 (재시작 시 중복 방지)
-    schedule.clear()
+    active_assets = _filter_accessible_assets(ASSETS)
+    if not active_assets:
+        print("No accessible Telegram channels. Exiting.", flush=True)
+        return
+
+    print("=" * 35, flush=True)
+
+    for asset in active_assets:
+        print(
+            f"[{asset['name']}] Market: {asset['market']} | Step: {asset['alert_step']} | Channel: {asset['telegram_channel']}",
+            flush=True,
+        )
+
+    print("=" * 35, flush=True)
 
     tracker = PriceTracker()
 
-    # 종목별 스케줄 등록
-    for stock in STOCKS:
-        name = stock["name"]
-        code = stock["code"]
-        times = stock["alert_times"]
-
-        print(f"[{name}] Alert times: {', '.join(times)}", flush=True)
-
-        for alert_time in times:
-            schedule.every().day.at(alert_time).do(tracker.send_scheduled_alert, stock)
-
-    print("=" * 35, flush=True)
-    print("Waiting for scheduled times...", flush=True)
-
     try:
         while True:
-            schedule.run_pending()
-            time.sleep(1)
+            tracker.poll_assets(active_assets)
+            time.sleep(CHECK_INTERVAL_SECONDS)
     finally:
         _release_lock()
 
