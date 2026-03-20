@@ -165,7 +165,7 @@ ASSETS = [
         "korean_name": "HYPE",
         "market": "CRYPTO",
         "is_index": False,
-        "alert_step": 1,
+        "alert_step": 0.5,
         "telegram_channel": CHANNELS["HYPE"],
         "price_style": "usd",
     },

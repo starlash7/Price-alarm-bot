@@ -64,6 +64,14 @@ class PriceTracker:
     def _range_key(self, asset, price):
         return int(Decimal(str(price)) // Decimal(str(asset["alert_step"])))
 
+    def _alert_level_price(self, asset, previous_range, current_range):
+        step = Decimal(str(asset["alert_step"]))
+        level = Decimal(max(previous_range, current_range)) * step
+
+        if asset.get("price_style") == "usd" or asset.get("is_index"):
+            return float(level)
+        return int(level)
+
     def _market_clock(self, asset, now_utc=None):
         now_utc = now_utc or datetime.now(ZoneInfo("UTC"))
 
@@ -73,8 +81,8 @@ class PriceTracker:
             return now_utc.astimezone(NEW_YORK_TZ), dt_time(16, 0)
         return None, None
 
-    def _send_alert(self, asset, result):
-        price = result["price"]
+    def _send_alert(self, asset, result, alert_price):
+        price = alert_price
         is_up = result["is_up"]
         image_path = create_price_image(asset["code"], price, is_up, is_index=asset.get("is_index", False))
         caption = send_price_caption(asset, price, is_up)
@@ -158,7 +166,8 @@ class PriceTracker:
         if range_key == previous_range:
             return
 
-        if self._send_alert(asset, result):
+        alert_price = self._alert_level_price(asset, previous_range, range_key)
+        if self._send_alert(asset, result, alert_price):
             self.last_ranges[asset["code"]] = range_key
 
     def poll_assets(self, assets):
